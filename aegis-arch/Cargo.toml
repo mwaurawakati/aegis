@@ -9,3 +9,7 @@ shared = { path = "../shared" }
 [[bin]]
 name = "aegis-arch"
 path = "src/main.rs"
+
+[lib]
+name = "shared"
+path = "src/lib.rs"
