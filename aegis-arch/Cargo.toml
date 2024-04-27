@@ -11,5 +11,5 @@ name = "aegis-arch"
 path = "src/main.rs"
 
 [lib]
-name = "shared"
+name = "aegis_arch"
 path = "src/lib.rs"
