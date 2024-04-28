@@ -29,11 +29,11 @@ pub fn copy_file(path: &str, destpath: &str)  {
 
     match exec_with_sudo(command, args){
         Ok(_) => {
-            info!("Copy {} to {}", path, destpath);
+            info!("opy {} to {}", path, destpath);
         }
         Err(e) => {
             crash(
-                format!("Copy {} to {}: Failed with error {}", path, destpath, e),
+                format!("opy {} to {}: Failed with error {}", path, destpath, e),
                 1,
             );
         }
