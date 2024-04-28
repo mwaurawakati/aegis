@@ -10,11 +10,12 @@ use shared::{info, warn};
 use shared::returncode_eval::exec_eval;
 use shared::returncode_eval::files_eval;
 use shared::strings::crash;
+use shared::files::create_directory;
 use std::path::PathBuf;
 
 pub fn install_base_packages() {
 
-    std::fs::create_dir_all("/mnt/etc").unwrap();
+    create_directory("/mnt/etc").unwrap();
     initialize_keyrings(); // Need to initialize keyrings before installing base package group otherwise get keyring errors. It uses rate-mirrors too
     files::copy_file("/etc/pacman.conf", "/mnt/etc/pacman.conf"); // It must be done before installing any Athena and Chaotic AUR package
     install(PackageManager::Pacstrap, vec![
