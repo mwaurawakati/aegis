@@ -143,7 +143,7 @@ pub fn create_directory(path: &str) -> io::Result<()> {
 }
 
 fn exec_with_sudo(command: &str, args: Vec<String>) -> io::Result<()> {
-    let mut command_with_sudo = vec!["sudo".to_string(), command.to_string()];
+    let mut command_with_sudo = vec![command.to_string()];
     command_with_sudo.extend(args);
 
     let result = Command::new("sudo")
