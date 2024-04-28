@@ -11,7 +11,7 @@ pub fn exec_chroot(
 ) -> Result<std::process::ExitStatus, std::io::Error> {
     let returncode = Command::new("sudo")
         .args([
-            "bash"
+            "bash",
             "-c",
             format!("arch-chroot /mnt {} {}", command, args.join(" ")).as_str(),
         ])
