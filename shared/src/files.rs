@@ -17,9 +17,17 @@ pub fn create_file(path: &str) {
     }
 }
 
-pub fn copy_file(path: &str, destpath: &str) {
-    let return_code = std::fs::copy(path, destpath);
-    match return_code {
+pub fn copy_file_old(path: &str, destpath: &str)->Result<(), Error> {
+    let command = "cp";
+    let args = vec![path.to_string(), destpath.to_string()];
+
+    exec_with_sudo(command, args)
+}
+pub fn copy_file(path: &str, destpath: &str)  {
+    let command = "cp";
+    let args = vec![path.to_string(), destpath.to_string()];
+
+    match exec_with_sudo(command, args){
         Ok(_) => {
             info!("Copy {} to {}", path, destpath);
         }
@@ -31,7 +39,6 @@ pub fn copy_file(path: &str, destpath: &str) {
         }
     }
 }
-
 // Copy recusrively all files from the given source directory to the specified target directory
 pub fn copy_all_files(source_dir: &str, target_dir: &str) {
     // Convert &str paths to Path
@@ -39,7 +46,7 @@ pub fn copy_all_files(source_dir: &str, target_dir: &str) {
     let target_path = Path::new(target_dir);
 
     // Create the target directory if it doesn't exist
-    if let Err(err) = fs::create_dir_all(target_path) {
+    if let Err(err) = create_directory(target_path.to_str().unwrap()) {
         println!("Error creating target directory: {}", err);
         return;
     }
@@ -55,7 +62,7 @@ pub fn copy_all_files(source_dir: &str, target_dir: &str) {
         // Check if the entry is a file or a directory
         if entry.file_type().unwrap().is_file() {
             // If it's a file, copy it to the target directory
-            if let Err(err) = fs::copy(&source_entry_path, &target_entry_path) {
+            if let Err(err) = copy_file_old(&source_entry_path.to_str().unwrap(), &target_entry_path.to_str().unwrap()) {
                 println!("Error copying file: {}", err);
             } else {
                 println!("File copied successfully: {:?}", target_entry_path);
