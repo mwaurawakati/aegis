@@ -7,22 +7,23 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 pub fn install(pkgmanager: PackageManager, pkgs: Vec<&str>) {
-
     // Create an Arc<Mutex<bool>> for the retry flag
     let mut retry = Arc::new(Mutex::new(true)); //Just to enter the first time in the while loop
-    
+
     let mut retry_counter = 0; // Initialize retry counter
-    while *retry.lock().unwrap() && retry_counter < 15 { // retry_counter should be the number of mirrors in mirrorlist
+    while *retry.lock().unwrap() && retry_counter < 15 {
+        // retry_counter should be the number of mirrors in mirrorlist
         retry = Arc::new(Mutex::new(false));
         let retry_clone = Arc::clone(&retry); // Clone for use in the thread. I need to do this because normally I cannot define a variable above and use it inside a threadzz
-        //info!("[ DEBUG ] Beginning retry {}", *retry.lock().unwrap());
+                                              //info!("[ DEBUG ] Beginning retry {}", *retry.lock().unwrap());
         let mut pkgmanager_cmd = Command::new("true")
             .spawn()
             .expect("Failed to initiialize by 'true'"); // Note that the Command type below will spawn child process, so the return type is Child, not Command. It means we need to initialize a Child type element, and we can do by .spawn().expect() over the Command type. 'true' in bash is like a NOP command
         let mut pkgmanager_name = String::new();
         match pkgmanager {
             PackageManager::Pacman => {
-                pkgmanager_cmd = Command::new("arch-chroot")
+                pkgmanager_cmd = Command::new("sudo")
+                    .arg("arch-chroot")
                     .arg("/mnt")
                     .arg("pacman")
                     .arg("-Syyu")
@@ -34,9 +35,10 @@ pub fn install(pkgmanager: PackageManager, pkgs: Vec<&str>) {
                     .spawn()
                     .expect("Failed to start pacman");
                 pkgmanager_name = String::from("pacman");
-            },
+            }
             PackageManager::Pacstrap => {
-                pkgmanager_cmd = Command::new("pacstrap")
+                pkgmanager_cmd = Command::new("sudo")
+                    .arg("pacstrap")
                     .arg("/mnt")
                     .args(&pkgs)
                     .stdout(Stdio::piped()) // Capture stdout
@@ -44,7 +46,7 @@ pub fn install(pkgmanager: PackageManager, pkgs: Vec<&str>) {
                     .spawn()
                     .expect("Failed to start pacstrap");
                 pkgmanager_name = String::from("pacstrap");
-            },
+            }
             PackageManager::None => debug!("No package manager selected"),
         };
 
@@ -59,7 +61,9 @@ pub fn install(pkgmanager: PackageManager, pkgs: Vec<&str>) {
             }
         });
 
-        let exit_status = pkgmanager_cmd.wait().expect("Failed to wait for the package manager");
+        let exit_status = pkgmanager_cmd
+            .wait()
+            .expect("Failed to wait for the package manager");
 
         let stderr_thread = thread::spawn(move || {
             let reader = BufReader::new(stderr_handle);
@@ -72,17 +76,12 @@ pub fn install(pkgmanager: PackageManager, pkgs: Vec<&str>) {
                 if exit_code == 0 {
                     warn!(
                         "{} warn (exit code {}): {}",
-                        pkgmanager_name,
-                        exit_code,
-                        line
+                        pkgmanager_name, exit_code, line
                     );
-                }
-                else {
+                } else {
                     error!(
                         "{} err (exit code {}): {}",
-                        pkgmanager_name,
-                        exit_code,
-                        line
+                        pkgmanager_name, exit_code, line
                     );
                 }
 
@@ -91,54 +90,67 @@ pub fn install(pkgmanager: PackageManager, pkgs: Vec<&str>) {
                     // Extract the mirror name from the error message
                     if let Some(mirror_name) = extract_mirror_name(&line) {
                         // Check if the mirror is in one of the mirrorlist files
-                        if let Some(mirrorlist_file) = find_mirrorlist_file(&mirror_name, &pkgmanager_name) {
+                        if let Some(mirrorlist_file) =
+                            find_mirrorlist_file(&mirror_name, &pkgmanager_name)
+                        {
                             // Move the "Server" line within the mirrorlist file
                             if let Err(err) = move_server_line(&mirrorlist_file, &mirror_name) {
                                 error!(
                                     "Failed to move 'Server' line in {}: {}",
-                                    mirrorlist_file,
-                                    err
+                                    mirrorlist_file, err
                                 );
                             } else {
                                 // Update the retry flag within the Mutex
-                                info!("Detected unstable mirror: {}. Retrying by a new one...", mirror_name);
+                                info!(
+                                    "Detected unstable mirror: {}. Retrying by a new one...",
+                                    mirror_name
+                                );
                                 let mut retry = retry_clone.lock().unwrap();
                                 *retry = true;
                                 //info!("[ DEBUG ] Unstable mirror retry {}", *retry);
                             }
                         }
                     }
-                }
-                else if line.contains("signature from") && line.contains("is invalid") {
+                } else if line.contains("signature from") && line.contains("is invalid") {
                     let package_name = extract_package_name(&line);
                     let repository = get_repository_name(&package_name);
-                    println!("Package {} found in repository: {}", package_name, repository);
+                    println!(
+                        "Package {} found in repository: {}",
+                        package_name, repository
+                    );
                     let mut mirrorlist_filename = String::new();
                     if pkgmanager_name == "pacstrap" {
-                        if repository == "core" || repository == "extra" || repository == "community" || repository == "multilib" {
+                        if repository == "core"
+                            || repository == "extra"
+                            || repository == "community"
+                            || repository == "multilib"
+                        {
                             mirrorlist_filename = String::from("/etc/pacman.d/mirrorlist");
                         }
                         if repository == "chaotic-aur" {
                             mirrorlist_filename = String::from("/etc/pacman.d/chaotic-mirrorlist");
                         }
-                    }
-                    else if pkgmanager_name == "pacman" {
-                        if repository == "core" || repository == "extra" || repository == "community" || repository == "multilib" {
+                    } else if pkgmanager_name == "pacman" {
+                        if repository == "core"
+                            || repository == "extra"
+                            || repository == "community"
+                            || repository == "multilib"
+                        {
                             mirrorlist_filename = String::from("/mnt/etc/pacman.d/mirrorlist");
                         }
                         if repository == "chaotic-aur" {
-                            mirrorlist_filename = String::from("/mnt/etc/pacman.d/chaotic-mirrorlist");
+                            mirrorlist_filename =
+                                String::from("/mnt/etc/pacman.d/chaotic-mirrorlist");
                         }
                     }
-                    
+
                     match get_first_mirror_name(&mirrorlist_filename) {
                         Ok(mirror_name) => {
                             println!("Mirror Name: {}", mirror_name);
                             if let Err(err) = move_server_line(&mirrorlist_filename, &mirror_name) {
                                 error!(
                                     "Failed to move 'Server' line in {}: {}",
-                                    mirrorlist_filename,
-                                    err
+                                    mirrorlist_filename, err
                                 );
                             } else {
                                 // Update the retry flag within the Mutex
@@ -160,7 +172,10 @@ pub fn install(pkgmanager: PackageManager, pkgs: Vec<&str>) {
 
         if !exit_status.success() {
             // Handle the error here, e.g., by logging it
-            error!("The package manager failed with exit code: {}", exit_status.code().unwrap_or(-1));
+            error!(
+                "The package manager failed with exit code: {}",
+                exit_status.code().unwrap_or(-1)
+            );
         }
 
         // Increment the retry counter
@@ -194,8 +209,7 @@ fn find_mirrorlist_file(mirror_name: &str, pkgmanager_name: &str) -> Option<Stri
             "/etc/pacman.d/mirrorlist",
             "/etc/pacman.d/chaotic-mirrorlist",
         ];
-    }
-    else if pkgmanager_name == "pacman" {
+    } else if pkgmanager_name == "pacman" {
         mirrorlist_paths = [
             "/mnt/etc/pacman.d/mirrorlist",
             "/mnt/etc/pacman.d/chaotic-mirrorlist",
@@ -228,7 +242,9 @@ fn move_server_line(mirrorlist_path: &str, mirror_name: &str) -> io::Result<()> 
     }
 
     // Find the index of the last line starting with "Server"
-    let last_server_index = lines.iter().rposition(|line| line.trim().starts_with("Server"));
+    let last_server_index = lines
+        .iter()
+        .rposition(|line| line.trim().starts_with("Server"));
 
     if let Some(last_server_index) = last_server_index {
         // Find the mirror URL line
@@ -248,7 +264,10 @@ fn move_server_line(mirrorlist_path: &str, mirror_name: &str) -> io::Result<()> 
             for line in lines {
                 writeln!(file, "{}", line)?;
             }
-            info!("'{}' moved at the end of {}", mirror_url_line, mirrorlist_path);
+            info!(
+                "'{}' moved at the end of {}",
+                mirror_url_line, mirrorlist_path
+            );
         }
     }
 
@@ -257,7 +276,7 @@ fn move_server_line(mirrorlist_path: &str, mirror_name: &str) -> io::Result<()> 
 
 fn get_first_mirror_name(filename: &str) -> Result<String, io::Error> {
     let file = File::open(filename)?;
-    
+
     for line in BufReader::new(file).lines() {
         let line = line?; // Unwrap the Result to get the line directly
         if let Some(equals_index) = line.find('=') {
@@ -268,7 +287,7 @@ fn get_first_mirror_name(filename: &str) -> Result<String, io::Error> {
             }
         }
     }
-    
+
     Err(io::Error::new(io::ErrorKind::NotFound, "Mirror not found"))
 }
 
@@ -288,10 +307,7 @@ fn extract_package_name(input: &str) -> String {
 
 fn get_repository_name(package_name: &str) -> String {
     // Run the `pacman -Si` command and capture its output
-    let output = Command::new("pacman")
-        .arg("-Si")
-        .arg(package_name)
-        .output();
+    let output = Command::new("sudo").arg("pacman").arg("-Si").arg(package_name).output();
 
     match output {
         Ok(output) if output.status.success() => {
@@ -300,7 +316,9 @@ fn get_repository_name(package_name: &str) -> String {
             match stdout {
                 Ok(stdout) => {
                     // Find the "Repository" field in the output
-                    if let Some(repository_line) = stdout.lines().find(|line| line.starts_with("Repository")) {
+                    if let Some(repository_line) =
+                        stdout.lines().find(|line| line.starts_with("Repository"))
+                    {
                         // Split the line by ':' and extract the repository name
                         let parts: Vec<&str> = repository_line.split(':').collect();
                         if parts.len() >= 2 {
