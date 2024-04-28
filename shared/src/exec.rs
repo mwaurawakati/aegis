@@ -24,7 +24,7 @@ pub fn exec_workdir(
     workdir: &str,
     args: Vec<String>,
 ) -> Result<std::process::ExitStatus, std::io::Error> {
-    let returncode = Command::new(command)
+    let returncode = Command::new("sudo").arg(command)
         .args(args)
         .current_dir(workdir)
         .status();
