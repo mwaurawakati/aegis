@@ -4,7 +4,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write, Error, ErrorKind};
 use std::path::Path;
 use regex::Regex;
-
+use std::process::Command;
 pub fn create_file(path: &str) {
     let returncode = File::create(path);
     match returncode {
@@ -134,6 +134,30 @@ pub fn replace_line_in_file(path: &str, search: &str, replacement: &str) -> io::
     Ok(())
 }
 
-pub fn create_directory(path: &str) -> std::io::Result<()> { // Create all missing dirs in the specified path
-    std::fs::create_dir_all(path)
+pub fn create_directory(path: &str) -> io::Result<()> {
+    let command = "mkdir";
+    let args = vec!["-p".to_string(), path.to_string()];
+
+    exec_with_sudo(command, args)?;
+    Ok(())
+}
+
+fn exec_with_sudo(command: &str, args: Vec<String>) -> io::Result<()> {
+    let mut command_with_sudo = vec!["sudo".to_string(), command.to_string()];
+    command_with_sudo.extend(args);
+
+    let result = Command::new("sudo")
+        .args(&command_with_sudo)
+        .status();
+
+    match result {
+        Ok(exit_status) => {
+            if exit_status.success() {
+                Ok(())
+            } else {
+                Err(io::Error::new(io::ErrorKind::Other, "Command failed"))
+            }
+        }
+        Err(e) => Err(e),
+    }
 }
