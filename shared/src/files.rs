@@ -121,6 +121,7 @@ pub fn _sed_file(path: &str, find: &str, replace: &str) -> io::Result<()> {
     Ok(())
 }
 
+
 pub fn sed_file(path: &str, find: &str, replace: &str) -> io::Result<()> {
     info!("Sed '{}' to '{}' in file {}", find, replace, path);
 
@@ -128,8 +129,10 @@ pub fn sed_file(path: &str, find: &str, replace: &str) -> io::Result<()> {
     let output = Command::new("sudo")
         .arg("sed")
         .arg("-i")
+        .arg("-e")
         .arg(format!("s/{}/{}", find, replace))
         .arg(path)
+        .stderr(Stdio::inherit()) // Capture stderr output
         .output();
 
     match output {
