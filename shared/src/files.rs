@@ -132,7 +132,7 @@ pub fn sed_file(path: &str, find: &str, replace: &str) -> io::Result<()> {
         .arg("-e")
         .arg(format!("s/{}/{}", find, replace))
         .arg(path)
-        .stderr(Stdio::inherit()) // Capture stderr output
+        .stderr(std::process::Stdio::inherit()) // Capture stderr output
         .output();
 
     match output {
