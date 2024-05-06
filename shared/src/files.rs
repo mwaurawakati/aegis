@@ -1,4 +1,4 @@
-use crate::log::{info};
+use crate::log::info;
 use crate::strings::crash;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write, Error, ErrorKind};
@@ -121,28 +121,32 @@ pub fn _sed_file(path: &str, find: &str, replace: &str) -> io::Result<()> {
     Ok(())
 }
 
-
 pub fn sed_file(path: &str, find: &str, replace: &str) -> io::Result<()> {
     info!("Sed '{}' to '{}' in file {}", find, replace, path);
-    let contents = fs::read_to_string(path)?;
-    let regex = Regex::new(find).map_err(|e| Error::new(ErrorKind::InvalidInput, e.to_string()))?;
-    let new_contents = regex.replace_all(&contents, replace);
-    
-    // Use sudo to open the file with elevated privileges
-    let mut command = std::process::Command::new("sudo");
-    command.arg("tee").arg(&path); // `tee` command to write to the file
-    
-    if let Ok(mut child) = command.stdin(OpenOptions::new().write(true).truncate(true).open(path)?) // Open the file with sudo
-                                              .spawn() {
-        // Write new contents to the file using sudo
-        child.stdin.take().unwrap().write_all(new_contents.as_bytes())?;
-        let _ = child.wait()?;
-    } else {
-        return Err(Error::new(ErrorKind::Other, "Failed to execute with sudo"));
+
+    // Execute sed command as a subprocess
+    let output = Command::new("sudo")
+        .arg("sed")
+        .arg("-i")
+        .arg(format!("s/{}/{}", find, replace))
+        .arg(path)
+        .output();
+
+    match output {
+        Ok(output) => {
+            if output.status.success() {
+                Ok(())
+            } else {
+                Err(Error::new(
+                    ErrorKind::Other,
+                    format!("Sed command failed with error: {:?}", output.status.code()),
+                ))
+            }
+        }
+        Err(e) => Err(e),
     }
-    
-    Ok(())
 }
+
 
 
 pub fn replace_line_in_file(path: &str, search: &str, replacement: &str) -> io::Result<()> {
